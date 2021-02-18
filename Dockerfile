@@ -1,18 +1,25 @@
 # docker run -it -p 15151:15151 -v /var/snap/lxd/common/lxd/unix.socket:/var/snap/lxd/common/lxd/unix.socket lxdui
 
-FROM ubuntu
+# docker run -it -p 15151:15151 -v /var/snap/lxd/common/lxd/unix.socket:/var/snap/lxd/common/lxd/unix.socket phenonymous/lxdui
+FROM python:3.8-alpine AS BASE
+RUN apk add libffi-dev openssl-dev 
 
-RUN apt update && apt install -y python3
+FROM BASE as BUILDER
 
-ADD . /app
+RUN mkdir install
 WORKDIR /app
+RUN apk add build-base cargo
+COPY requirements.txt /app/requirements.txt
+RUN pip install --target=/install -r /app/requirements.txt
+COPY run.py /app/run.py
+COPY app/ /app/app
+COPY conf/ /app/conf
+COPY logs/ /app/logs
 
-RUN apt install -y python3-pip libffi-dev libssl-dev
-RUN pip3 install setuptools
-RUN python3 setup.py install
-
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
+FROM BASE
+COPY --from=BUILDER /install /usr
+COPY --from=BUILDER /app /app
 EXPOSE 15151
-
-ENTRYPOINT ["python3", "run.py", "start"]
+WORKDIR /app
+ENV PYTHONPATH=/usr
+ENTRYPOINT ["python", "run.py", "start"]
